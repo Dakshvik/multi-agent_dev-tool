@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from src.llm.chatgroq_client import generate_orchestrator_plan
+
 
 def _security_signal_count(text: str) -> int:
     security_keywords = [
@@ -47,13 +49,10 @@ def _build_plan(text: str) -> Tuple[List[str], List[str], int, int, bool]:
 
     if perf_hits > 0 or nested_loop:
         plan.append("performance")
-        reasons.append(
-            f"Performance signals detected: {perf_hits}, nested_loop={nested_loop}"
-        )
+        reasons.append(f"Performance signals detected: {perf_hits}, nested_loop={nested_loop}")
 
     plan.append("test")
     reasons.append("Always include test generation.")
-
     plan.append("docs")
     reasons.append("Always include documentation update.")
 
@@ -68,19 +67,51 @@ def _build_plan(text: str) -> Tuple[List[str], List[str], int, int, bool]:
 
 
 def run_orchestrator(state: Dict[str, Any]) -> Dict[str, Any]:
-    source = (state.get("current_code") or state.get("original_code") or "").lower()
+    source_code = str(state.get("current_code") or state.get("original_code") or "")
+    lowered = source_code.lower()
+    language = str(state.get("language", "python"))
 
-    plan, reasons, security_hits, perf_hits, nested_loop = _build_plan(source)
-    risk_score = _compute_risk_score(security_hits, perf_hits, nested_loop)
+    llm_plan, llm_risk, llm_reasoning, llm_source = generate_orchestrator_plan(
+        code=source_code,
+        language=language,
+    )
 
-    state["routing_plan"] = plan
+    if llm_source == "chatgroq" and llm_plan:
+        plan = llm_plan
+        risk_score = llm_risk
+        reason_text = llm_reasoning or "LLM routing plan generated."
+    else:
+        plan, reasons, security_hits, perf_hits, nested_loop = _build_plan(lowered)
+        risk_score = _compute_risk_score(security_hits, perf_hits, nested_loop)
+        reason_text = " | ".join(reasons)
+
+    # Snapshot must be immutable w.r.t later routing pops.
+    plan_snapshot = list(plan)
+
+    state["routing_plan"] = list(plan)
     state["risk_score"] = risk_score
     state["approval_required"] = risk_score >= 0.7
-    state["state_summary"] = " | ".join(reasons)
+    state["state_summary"] = f"Orchestrator executed (source={llm_source}). {reason_text}"
     state["retry_count"] = 0
     state["active_agent"] = None
 
     if state["approval_required"] and state.get("approval_status") in (None, "not_required"):
         state["approval_status"] = "pending"
+
+    execution_log = state.get("execution_log", [])
+    execution_log.append(
+        {
+            "agent": "orchestrator",
+            "source": llm_source,
+            "summary": reason_text,
+            "risk_score": risk_score,
+            "plan": plan_snapshot,
+        }
+    )
+    state["execution_log"] = execution_log
+
+    llm_diag = state.get("llm_diagnostics", {})
+    llm_diag["orchestrator"] = llm_source
+    state["llm_diagnostics"] = llm_diag
 
     return state

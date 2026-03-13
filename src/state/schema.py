@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -50,6 +50,8 @@ class PipelineState(BaseModel):
 
     test_suite: str = ""
     docs: str = ""
+    security_notes: str = ""
+    performance_notes: str = ""
 
     validation: Optional[ValidationResult] = None
     errors: List[str] = Field(default_factory=list)
@@ -61,6 +63,8 @@ class PipelineState(BaseModel):
     approval_status: ApprovalStatus = ApprovalStatus.NOT_REQUIRED
     approval_notes: str = ""
 
+    state_summary: str = ""
+    execution_log: List[Dict[str, Any]] = Field(default_factory=list)
     pr_report_markdown: str = ""
 
     def next_agent(self) -> Optional[AgentName]:

@@ -7,12 +7,15 @@ src/agentic_pr_pipeline.egg-info/SOURCES.txt
 src/agentic_pr_pipeline.egg-info/dependency_links.txt
 src/agentic_pr_pipeline.egg-info/requires.txt
 src/agentic_pr_pipeline.egg-info/top_level.txt
+src/api/app.py
+src/api/schemas.py
 src/context/reducer.py
 src/context/selectors.py
 src/execution/runners/pytest_runner.py
 src/execution/sandbox/docker_runner.py
 src/graph/routes.py
 src/graph/workflow.py
+src/llm/chatgroq_client.py
 src/nodes/orchestrator.py
 src/nodes/performance_optimizer.py
 src/nodes/security_auditor.py

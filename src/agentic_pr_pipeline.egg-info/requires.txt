@@ -1,5 +1,12 @@
 pydantic<3.0,>=2.7
 langgraph<0.7.0,>=0.2.40
+langchain<0.4.0,>=0.3.21
+langchain-core<0.4.0,>=0.3.49
+langchain-groq<0.3.0,>=0.2.4
+python-dotenv<2.0.0,>=1.0.1
+fastapi<1.0.0,>=0.115.11
+uvicorn<1.0.0,>=0.34.0
 
 [dev]
 pytest<9.0,>=8.0
+httpx<1.0.0,>=0.28.1
