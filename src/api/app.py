@@ -16,6 +16,7 @@ def _build_initial_state(payload: ReviewRequest) -> dict:
     return {
         "original_code": payload.code,
         "current_code": payload.code,
+        "fixed_code": "",
         "language": payload.language,
         "routing_plan": [],
         "last_completed_agent": None,
@@ -68,6 +69,7 @@ def review(payload: ReviewRequest) -> ReviewResponse:
         docs=final_state.get("docs", ""),
         security_notes=final_state.get("security_notes", ""),
         performance_notes=final_state.get("performance_notes", ""),
+        fixed_code=final_state.get("fixed_code", ""),
         risk_score=float(final_state.get("risk_score", 0.0)),
         approval_required=bool(final_state.get("approval_required", False)),
         approval_status=final_state.get("approval_status", "not_required"),

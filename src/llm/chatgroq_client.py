@@ -17,7 +17,7 @@ class SecurityAuditResponse(BaseModel):
 
 class OrchestratorPlanResponse(BaseModel):
     routing_plan: List[str] = Field(
-        description="Ordered list of agents from: security, performance, test, docs"
+        description="Ordered list of agents from: security, performance, fixer, test, docs"
     )
     risk_score: float = Field(description="Risk score between 0.0 and 1.0")
     reasoning: str = Field(description="Short explanation for the plan")
@@ -68,8 +68,11 @@ def _fallback_docs() -> str:
     )
 
 
+def _fallback_fixed_code(code: str) -> str:
+    return f"# Auto-fix unavailable. Manual review required.\n\n{code}"
+
+
 def _build_model() -> ChatGroq:
-    # Defensive stripping in case key is surrounded by quotes in .env
     api_key = settings.groq_api_key.strip().strip('"').strip("'")
     return ChatGroq(
         api_key=api_key,
@@ -79,7 +82,7 @@ def _build_model() -> ChatGroq:
 
 
 def _normalize_plan(plan: List[str]) -> List[str]:
-    allowed = {"security", "performance", "test", "docs"}
+    allowed = {"security", "performance", "fixer", "test", "docs"}
     deduped: List[str] = []
     seen = set()
 
@@ -88,6 +91,16 @@ def _normalize_plan(plan: List[str]) -> List[str]:
         if value in allowed and value not in seen:
             deduped.append(value)
             seen.add(value)
+
+    has_issue_agents = ("security" in seen) or ("performance" in seen)
+    if has_issue_agents and "fixer" not in seen:
+        insert_idx = 0
+        if "performance" in deduped:
+            insert_idx = max(insert_idx, deduped.index("performance") + 1)
+        if "security" in deduped:
+            insert_idx = max(insert_idx, deduped.index("security") + 1)
+        deduped.insert(insert_idx, "fixer")
+        seen.add("fixer")
 
     if "test" not in seen:
         deduped.append("test")
@@ -99,12 +112,6 @@ def _normalize_plan(plan: List[str]) -> List[str]:
 
 
 def generate_test_suite(code: str, language: str) -> Tuple[str, str]:
-    """
-    Uses strict JSON text mode instead of tool-calling structured output.
-    Accepts either:
-    1) test_suite as a single code string
-    2) test_suite as a dict of named test snippets (joins them deterministically)
-    """
     if not settings.llm_enabled:
         return _fallback_test_suite(language), "fallback_disabled"
     if not settings.groq_api_key:
@@ -203,10 +210,11 @@ def generate_orchestrator_plan(code: str, language: str) -> Tuple[List[str], flo
         prompt = (
             "You are a strict routing planner for a CI PR hardening pipeline.\n"
             "Return routing_plan, risk_score, and reasoning.\n"
-            "routing_plan agents must be from: security, performance, test, docs.\n"
+            "routing_plan agents must be from: security, performance, fixer, test, docs.\n"
             "Always include test and docs.\n"
             "Use security when auth/db/secrets/security risks exist.\n"
             "Use performance for clear complexity/bottleneck issues.\n"
+            "If security or performance is selected, include fixer before test/docs.\n"
             "risk_score must be between 0.0 and 1.0.\n\n"
             f"Language: {language}\n\n"
             f"Code:\n{code}\n"
@@ -293,3 +301,54 @@ def generate_docs_summary(
         return docs, "chatgroq"
     except Exception as exc:
         return _fallback_docs(), _err_tag(exc)
+
+
+def generate_fixed_code(
+    code: str,
+    language: str,
+    security_notes: str,
+    performance_notes: str,
+) -> Tuple[str, str]:
+    if not settings.llm_enabled:
+        return _fallback_fixed_code(code), "fallback_disabled"
+    if not settings.groq_api_key:
+        return _fallback_fixed_code(code), "fallback_no_key"
+
+    try:
+        model = _build_model()
+
+        issues = []
+        if security_notes.strip():
+            issues.append(f"Security issues:\n{security_notes}")
+        if performance_notes.strip():
+            issues.append(f"Performance issues:\n{performance_notes}")
+        issues_text = "\n\n".join(issues) or "No specific issues found."
+
+        prompt = (
+            f"You are an expert {language} developer.\n"
+            "Rewrite the code to fix all listed issues.\n"
+            "Return only corrected code. No markdown fences. No explanation.\n\n"
+            f"Original code:\n{code}\n\n"
+            f"Issues to fix:\n{issues_text}\n\n"
+            "Fixed code:"
+        )
+
+        result = model.invoke(prompt)
+        fixed = (result.content or "").strip()
+
+        if fixed.startswith("```"):
+            lines = fixed.splitlines()
+            if lines:
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            fixed = "\n".join(lines).strip()
+
+        if not fixed:
+            raise ValueError("Empty fixed code from model.")
+        if "```" in fixed:
+            raise ValueError("Model returned fenced output inside fixed code.")
+
+        return fixed, "chatgroq"
+    except Exception as exc:
+        return _fallback_fixed_code(code), _err_tag(exc)

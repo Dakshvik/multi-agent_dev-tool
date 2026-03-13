@@ -5,6 +5,7 @@ from typing import Any, Dict
 from langgraph.graph import END, START, StateGraph
 
 from src.graph.routes import route_after_hitl, route_after_validator, route_from_orchestrator
+from src.nodes.code_fixer import run_code_fixer
 from src.nodes.orchestrator import run_orchestrator
 from src.nodes.performance_optimizer import run_performance_optimizer
 from src.nodes.security_auditor import run_security_auditor
@@ -21,6 +22,7 @@ def build_graph():
     graph.add_node("orchestrator", run_orchestrator)
     graph.add_node("security", run_security_auditor)
     graph.add_node("performance", run_performance_optimizer)
+    graph.add_node("fixer", run_code_fixer)
     graph.add_node("test", run_test_engineer)
     graph.add_node("docs", run_technical_writer)
     graph.add_node("validator", run_validator)
@@ -36,6 +38,7 @@ def build_graph():
         {
             "security": "security",
             "performance": "performance",
+            "fixer": "fixer",
             "test": "test",
             "docs": "docs",
             "hitl": "hitl",
@@ -45,6 +48,7 @@ def build_graph():
 
     graph.add_edge("security", "validator")
     graph.add_edge("performance", "validator")
+    graph.add_edge("fixer", "validator")
     graph.add_edge("test", "validator")
     graph.add_edge("docs", "validator")
 
@@ -54,6 +58,7 @@ def build_graph():
         {
             "security": "security",
             "performance": "performance",
+            "fixer": "fixer",
             "test": "test",
             "docs": "docs",
             "hitl": "hitl",

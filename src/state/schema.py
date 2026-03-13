@@ -16,6 +16,7 @@ class Language(str, Enum):
 class AgentName(str, Enum):
     SECURITY = "security"
     PERFORMANCE = "performance"
+    FIXER = "fixer"
     TEST = "test"
     DOCS = "docs"
 
@@ -43,6 +44,7 @@ class PipelineState(BaseModel):
     original_code: str
     current_code: str
     language: Language = Language.UNKNOWN
+    fixed_code: str = ""
 
     routing_plan: List[AgentName] = Field(default_factory=list)
     last_completed_agent: Optional[AgentName] = None

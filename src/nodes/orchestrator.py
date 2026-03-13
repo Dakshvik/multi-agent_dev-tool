@@ -43,13 +43,21 @@ def _build_plan(text: str) -> Tuple[List[str], List[str], int, int, bool]:
     perf_hits = _performance_signal_count(text)
     nested_loop = _detect_nested_loop_hint(text)
 
+    has_issue_agents = False
+
     if security_hits > 0:
         plan.append("security")
         reasons.append(f"Security signals detected: {security_hits}")
+        has_issue_agents = True
 
     if perf_hits > 0 or nested_loop:
         plan.append("performance")
         reasons.append(f"Performance signals detected: {perf_hits}, nested_loop={nested_loop}")
+        has_issue_agents = True
+
+    if has_issue_agents:
+        plan.append("fixer")
+        reasons.append("Code fixer added due to detected security/performance issues.")
 
     plan.append("test")
     reasons.append("Always include test generation.")
@@ -85,7 +93,6 @@ def run_orchestrator(state: Dict[str, Any]) -> Dict[str, Any]:
         risk_score = _compute_risk_score(security_hits, perf_hits, nested_loop)
         reason_text = " | ".join(reasons)
 
-    # Snapshot must be immutable w.r.t later routing pops.
     plan_snapshot = list(plan)
 
     state["routing_plan"] = list(plan)

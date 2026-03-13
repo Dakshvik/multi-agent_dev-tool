@@ -22,6 +22,7 @@ class ReviewResponse(BaseModel):
     docs: str = ""
     security_notes: str = ""
     performance_notes: str = ""
+    fixed_code: str = ""
     risk_score: float = 0.0
     approval_required: bool = False
     approval_status: str = "not_required"
